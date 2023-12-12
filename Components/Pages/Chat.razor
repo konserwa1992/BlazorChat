@@ -1,0 +1,156 @@
+﻿@page "/"
+@rendermode InteractiveServer
+
+
+@using BlazorChatWeb.Server
+@using BlazorChatWeb.Shared
+@using System.Text.Json
+@using System.Security.Cryptography
+@using System.Text
+@using System.ComponentModel.DataAnnotations
+@using WebSocketSharp;
+
+<div style="width:20%; height:400px;display:inline-block;vertical-align: top">
+    <div >
+                <p>Tag Name:</p>
+                <input class="btn btn-primary" style="width:95%" type="text" @bind="TagName" /><br<br>
+                <button class="btn btn-primary" @onclick="AddChannel">Add Tag</button><br>
+               <br>
+                <div style="overflow-y: scroll;width:95%; height:225px;display:inline-block;">
+               <div>
+                <ul class="list-group">
+                    @foreach (string channelName in channelList)
+                    {
+                        <button type="button" class="list-group-item list-group-item-action" style=@(SelectedTag==channelName?"background-color:#1b5ec0;color:white":"") @onclick="() => SetChannel(channelName)"><p style="border-bottom:groove">@(channelName != "" ? channelName : @"\")</p></button>
+                    }
+                    </ul>
+                </div>  
+                </div>
+    </div>
+</div>
+
+<div style="overflow-y: scroll;width:75%; height:400px;display:inline-block;border-style:outset;border-radius: 10px;border-width: thin;">
+        @foreach (ChatMessage message in messages)
+        {
+            <div style="text-align:right;padding-right:10px;font-size: 12px;color:grey">Channel: @message.Channel Date:@System.DateTime.Now.ToString()</div>
+            <p style="border-bottom:dotted"><b style="color:@NickToHexColor(message.Nick)">@message.Nick :</b> @message.Message <br> </p>
+        }
+</div>
+
+
+
+<div style="">
+    <div style="width:20%;display:inline-block">
+        Nick:
+    </div>
+    <div style="display:inline-block">
+        Text:
+    </div>
+</div>
+
+<input class="btn btn-primary" placeholder="NICK" style="width:20%" type="text" @bind="nick" />
+<input class="btn btn-primary" style="width:70%" type="text" @bind="message" />
+<button class="btn btn-primary" @onclick="SendFun">Send</button>
+
+
+@code {
+     WebSocket wsChat = new WebSocket("ws://vps-0ca4cf32.vps.ovh.net:8080/");
+     WebSocket wsChannels = new WebSocket("ws://vps-0ca4cf32.vps.ovh.net:8080/channel");
+
+  //  WebSocket wsChat = new WebSocket("ws://127.0.0.1:8080/");
+  //  WebSocket wsChannels = new WebSocket("ws://127.0.0.1:8080/channel");
+
+
+    protected override async Task OnInitializedAsync()
+    {
+    }
+
+    string message = "";
+    string TagName = "";
+    string SelectedTag=@"\";
+    string nick = "";
+    List<ChatMessage> messages = new List<ChatMessage>();
+    List<string> channelList = new List<string>();
+
+    protected override void OnInitialized()
+    {
+     
+        wsChat.OnMessage += ((sender,e) =>
+        {
+            messages.Add(JsonSerializer.Deserialize<ChatMessage>(e.Data));
+            InvokeAsync(() => StateHasChanged());
+        });
+
+        wsChannels.OnMessage += ((sender, e) =>
+        {
+            channelList = new List<string>();
+            string[] tags = e.Data.Split(";");
+            for (int i = 0; i < tags.Length-1;i++)
+                channelList.Add(tags[i]);
+
+            InvokeAsync(() => StateHasChanged());
+        });
+
+
+
+        base.OnInitialized();
+
+        wsChat.Connect();
+        wsChannels.Connect();
+        wsChannels.Send("UPDATE ");
+
+
+    }
+
+    string NickToHexColor(string nick)
+    {
+        string firstFourLetters = nick.Substring(0, Math.Min(nick.Length, 4));
+
+        using (MD5 md5 = MD5.Create())
+        {
+            byte[] inputBytes = Encoding.ASCII.GetBytes(firstFourLetters);
+            byte[] hashBytes = md5.ComputeHash(inputBytes);
+
+            byte r = hashBytes[1];
+            byte g = hashBytes[8];
+            byte b = hashBytes[14];
+
+            string hexColor = $"#{r:X2}{g:X2}{b:X2}";
+            return hexColor;
+        }
+    }
+
+    private void SendFun()
+    {
+        if (nick.Length >= 4)
+        {
+            ChatMessage smessage = new ChatMessage()
+                {
+                    Nick = nick,
+                    Message = message,
+                    Channel = SelectedTag
+                };
+
+
+            wsChat.Send(JsonSerializer.Serialize(smessage));
+        }
+    }
+
+    private void SetChannel(string name)
+    {
+        wsChat.Close();
+        wsChat = new WebSocket($"ws://127.0.0.1:8080/{name}");
+        wsChat.OnMessage += ((sender, e) =>
+        {
+            messages.Add(JsonSerializer.Deserialize<ChatMessage>(e.Data));
+            InvokeAsync(() => StateHasChanged());
+        });
+        SelectedTag = name;
+        wsChat.Connect();
+    }
+
+    private void AddChannel()
+    {
+        wsChannels.Send($"Add {TagName}");
+    }
+}
