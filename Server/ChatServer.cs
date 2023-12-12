@@ -10,7 +10,7 @@ namespace BlazorChatWeb.Server
         NotyficationChannels notyfication = new NotyficationChannels();
 
 
-        public class YourWebSocketBehavior : WebSocketBehavior
+        public class ChatBehavior : WebSocketBehavior
         {
             List<string> pass = new List<string>();
    
@@ -66,7 +66,7 @@ namespace BlazorChatWeb.Server
             {
                 if (!Server.WebSocketServices.Hosts.Any(x=>x.Path.Contains(name)))
                 {
-                    Server.AddWebSocketService<YourWebSocketBehavior>($"/{name}");
+                    Server.AddWebSocketService<ChatBehavior>($"/{name}");
                     string tags = "";
 
                     foreach(var tag in Server.WebSocketServices.Paths)
@@ -94,7 +94,7 @@ namespace BlazorChatWeb.Server
         [Obsolete]
         public ChatServer()
         {
-            wssv.AddWebSocketService<YourWebSocketBehavior>("/");
+            wssv.AddWebSocketService<ChatBehavior>("/");
             wssv.AddWebSocketService<ChannelSocketBehavior>("/channel",() => new ChannelSocketBehavior(wssv));
             wssv.Start();
             Console.WriteLine("WebSocket Server started");
